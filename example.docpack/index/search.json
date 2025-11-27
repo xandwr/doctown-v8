@@ -1,0 +1,16 @@
+{
+  "index": {
+    "calculate": ["main.py:5"],
+    "sum": ["main.py:5"],
+    "main": ["main.py:15"],
+    "format": ["utils.py:3"],
+    "output": ["utils.py:3"],
+    "numbers": ["main.py:5"],
+    "print": ["main.py:20", "utils.py:8"]
+  },
+  "metadata": {
+    "total_files": 2,
+    "total_symbols": 3,
+    "indexed_at": "2025-11-26T12:00:00Z"
+  }
+}

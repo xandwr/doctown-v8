@@ -1,0 +1,90 @@
+{
+  "nodes": [
+    {
+      "id": "node_1",
+      "type": "file",
+      "path": "main.py",
+      "metadata": {
+        "lines": 42,
+        "language": "python",
+        "last_modified": "2025-11-26T12:00:00Z"
+      }
+    },
+    {
+      "id": "node_2",
+      "type": "symbol",
+      "name": "calculate_sum",
+      "path": "main.py",
+      "line_start": 5,
+      "line_end": 12,
+      "metadata": {
+        "kind": "function",
+        "parameters": ["numbers"],
+        "returns": "int"
+      }
+    },
+    {
+      "id": "node_3",
+      "type": "symbol",
+      "name": "main",
+      "path": "main.py",
+      "line_start": 15,
+      "line_end": 25,
+      "metadata": {
+        "kind": "function",
+        "parameters": [],
+        "returns": "None"
+      }
+    },
+    {
+      "id": "node_4",
+      "type": "file",
+      "path": "utils.py",
+      "metadata": {
+        "lines": 28,
+        "language": "python",
+        "last_modified": "2025-11-26T12:00:00Z"
+      }
+    },
+    {
+      "id": "node_5",
+      "type": "symbol",
+      "name": "format_output",
+      "path": "utils.py",
+      "line_start": 3,
+      "line_end": 10,
+      "metadata": {
+        "kind": "function",
+        "parameters": ["value"],
+        "returns": "str"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "node_2",
+      "to": "node_1",
+      "type": "defined_in"
+    },
+    {
+      "from": "node_3",
+      "to": "node_1",
+      "type": "defined_in"
+    },
+    {
+      "from": "node_3",
+      "to": "node_2",
+      "type": "calls"
+    },
+    {
+      "from": "node_5",
+      "to": "node_4",
+      "type": "defined_in"
+    },
+    {
+      "from": "node_3",
+      "to": "node_5",
+      "type": "calls"
+    }
+  ]
+}

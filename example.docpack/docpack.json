@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "name": "example-python-project",
+  "description": "A simple Python project for testing Doctown",
+
+  "environment": {
+    "tools": [
+      "list_files",
+      "read_file",
+      "search_code",
+      "query_graph",
+      "write_output"
+    ],
+    "interpreter": "python3.12",
+    "constraints": {
+      "max_file_reads": 1000,
+      "max_execution_time_seconds": 300,
+      "memory_limit_mb": 2048
+    }
+  },
+
+  "metadata": {
+    "created": "2025-11-26T12:00:00Z",
+    "creator": "doctown-builder",
+    "source_type": "codebase",
+    "language": "python"
+  }
+}

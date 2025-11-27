@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+*/.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+*/.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker
+*.log
+
+# Docpack outputs (don't commit generated documentation)
+*.docpack/output/
+*.docpack/.reasoning
+
+# Temporary files
+*.tmp
+input.zip

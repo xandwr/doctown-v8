@@ -1,0 +1,45 @@
+{
+  "mission": "Generate comprehensive documentation for this Python project",
+
+  "tasks": [
+    {
+      "id": "task_1",
+      "name": "Analyze project structure",
+      "description": "Map out the high-level architecture and identify main components",
+      "tools_allowed": ["list_files", "read_file", "query_graph"],
+      "output": {
+        "type": "markdown",
+        "path": "architecture.md"
+      }
+    },
+    {
+      "id": "task_2",
+      "name": "Document key functions",
+      "description": "Create documentation for the main functions and classes",
+      "depends_on": ["task_1"],
+      "tools_allowed": ["read_file", "search_code", "query_graph"],
+      "output": {
+        "type": "markdown",
+        "path": "api-reference.md"
+      }
+    }
+  ],
+
+  "constraints": {
+    "chain_of_thought_location": "/workspace/.reasoning",
+    "forbidden_actions": ["modify_files", "execute_code"],
+    "output_format": "markdown",
+    "validation": {
+      "required_sections": ["Overview", "Architecture"],
+      "min_length": 500
+    }
+  },
+
+  "evaluation": {
+    "success_criteria": [
+      "All tasks completed without errors",
+      "Output files exist at specified paths",
+      "Validation rules pass"
+    ]
+  }
+}

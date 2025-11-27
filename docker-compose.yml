@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  doctown-agent:
+    build:
+      context: ./documenter
+      dockerfile: Dockerfile
+    image: doctown:latest
+    container_name: doctown-agent
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKSPACE_PATH=/workspace
+    volumes:
+      # Mount the .docpack directory as a volume
+      - ./example.docpack:/workspace
+    # For debugging, you can override the command
+    # command: ["python", "-c", "import os; print(os.listdir('/workspace'))"]
+
+  # Optional: For production deployment testing
+  # This simulates what would run on RunPod
+  doctown-production:
+    build:
+      context: ./documenter
+      dockerfile: Dockerfile
+    image: doctown:latest
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKSPACE_PATH=/workspace
+    volumes:
+      - ./example.docpack:/workspace
+    profiles:
+      - production
