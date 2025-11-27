@@ -165,6 +165,99 @@ class EmbeddingSearcher:
 
         return results
 
+    def find_neighbors(self, file_path: str, top_k: int = 5) -> List[Dict]:
+        """
+        Find files semantically similar to the given file.
+        This is the inverse of semantic search - instead of searching for concepts,
+        you provide a file and get similar files back.
+
+        Args:
+            file_path: Path to the file to find neighbors for (relative to files_dir)
+            top_k: Number of similar files to return (default: 5)
+
+        Returns:
+            List of dicts with 'file', 'score', and 'representative_chunk'
+        """
+        embeddings_data = self._load_embeddings_cache()
+
+        if not embeddings_data.get("chunks"):
+            return {"error": "No embeddings available. Build embeddings first."}
+
+        # Get all chunks for the target file
+        file_chunks = []
+        file_embeddings = []
+
+        for i, meta in enumerate(embeddings_data["metadata"]["file_metadata"]):
+            if meta["file"] == file_path:
+                file_chunks.append(embeddings_data["chunks"][i])
+                file_embeddings.append(embeddings_data["embeddings"][i])
+
+        if not file_embeddings:
+            return {"error": f"File '{file_path}' not found in embeddings"}
+
+        # Compute average embedding for the target file
+        file_embedding = np.mean(file_embeddings, axis=0)
+
+        # Convert all embeddings to numpy
+        doc_embeddings = np.array(embeddings_data["embeddings"], dtype=np.float32)
+
+        # Compute similarities
+        model = self._load_model()
+        similarities = model.similarity(file_embedding, doc_embeddings)[0]
+
+        # Convert to numpy if it's a tensor
+        if hasattr(similarities, 'cpu'):
+            similarities = similarities.cpu().numpy()
+        elif not isinstance(similarities, np.ndarray):
+            similarities = np.array(similarities)
+
+        # Group by file and compute average similarity per file
+        file_scores = {}
+        file_representative_chunks = {}
+
+        for i, meta in enumerate(embeddings_data["metadata"]["file_metadata"]):
+            file = meta["file"]
+            score = float(similarities[i])
+
+            if file not in file_scores:
+                file_scores[file] = []
+                file_representative_chunks[file] = {
+                    "chunk": embeddings_data["chunks"][i],
+                    "score": score
+                }
+
+            file_scores[file].append(score)
+
+            # Keep track of the highest-scoring chunk per file
+            if score > file_representative_chunks[file]["score"]:
+                file_representative_chunks[file] = {
+                    "chunk": embeddings_data["chunks"][i],
+                    "score": score
+                }
+
+        # Compute average score per file
+        file_avg_scores = {
+            file: np.mean(scores)
+            for file, scores in file_scores.items()
+        }
+
+        # Sort by average score and exclude the query file itself
+        sorted_files = sorted(
+            [(f, s) for f, s in file_avg_scores.items() if f != file_path],
+            key=lambda x: x[1],
+            reverse=True
+        )[:top_k]
+
+        results = []
+        for file, score in sorted_files:
+            results.append({
+                "file": file,
+                "score": float(score),
+                "representative_chunk": file_representative_chunks[file]["chunk"]
+            })
+
+        return results
+
 
 def build_embeddings_cli(docpack_path: str):
     """CLI function to build embeddings for a docpack."""
