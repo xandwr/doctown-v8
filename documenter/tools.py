@@ -164,6 +164,48 @@ class DocpackTools:
         except Exception as e:
             return {"error": str(e)}
 
+    def semantic_search_and_read(self, query, max_results=3):
+        """
+        Semantic search + automatic file reading.
+        One-shot tool to find and read relevant code.
+
+        This combines semantic_search with read_file to provide
+        full file contents for the most relevant matches, saving
+        multiple round-trips. Perfect for quickly getting context
+        on a topic.
+        """
+        search_results = self.semantic_search(query, top_k=max_results)
+
+        if "error" in search_results:
+            return search_results
+
+        # Deduplicate by file
+        files_to_read = {}
+        for result in search_results["results"]:
+            file = result["file"] # type: ignore
+            if file not in files_to_read:
+                files_to_read[file] = []
+            files_to_read[file].append({
+                "chunk": result["chunk"], # type: ignore
+                "score": result["score"] # type: ignore
+            })
+
+        # Read each unique file
+        outputs = []
+        for file, chunks in files_to_read.items():
+            content = self.read_file(file)
+            outputs.append({
+                "file": file,
+                "content": content.get("content"),
+                "relevant_chunks": chunks
+            })
+
+        return {
+            "query": query,
+            "files_found": len(outputs),
+            "results": outputs
+        }
+
     def write_output(self, path, content):
         """Write content to the output/ directory."""
         real = self.sandbox.resolve_output(path)
@@ -278,6 +320,28 @@ class DocpackTools:
                                 "type": "integer",
                                 "description": "Number of results to return (default: 5)",
                                 "default": 5
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            "semantic_search_and_read": {
+                "type": "function",
+                "function": {
+                    "name": "semantic_search_and_read",
+                    "description": "One-shot semantic search that finds relevant code and automatically reads the full file contents. Combines semantic_search + read_file to save round-trips. Perfect for quickly gathering full context on a topic without multiple tool calls.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Natural language description of what you're looking for (e.g., 'error handling patterns', 'authentication logic', 'database queries')"
+                            },
+                            "max_results": {
+                                "type": "integer",
+                                "description": "Maximum number of files to return (default: 3)",
+                                "default": 3
                             }
                         },
                         "required": ["query"]
