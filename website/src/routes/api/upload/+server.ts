@@ -18,8 +18,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({ error: 'No file uploaded' }, { status: 400 });
 		}
 
-		if (!file.name.endsWith('.zip')) {
-			return json({ error: 'Only .zip files are allowed' }, { status: 400 });
+		if (!file.name.endsWith('.zip') && !file.name.endsWith('.docpack')) {
+			return json({ error: 'Only .zip or .docpack files are allowed' }, { status: 400 });
 		}
 
 		// Create temp and output directories
@@ -29,7 +29,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Generate unique ID for this upload
 		const docpackId = randomBytes(8).toString('hex');
 		const timestamp = Date.now();
-		const uploadName = file.name.replace('.zip', '');
+		const uploadName = file.name.replace('.zip', '').replace('.docpack', '');
 
 		// Save uploaded file
 		const zipPath = join(TEMP_DIR, `${docpackId}.zip`);
@@ -53,12 +53,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Create docpack using localdoc CLI
 		const docpackPath = join(OUTPUT_DIR, `${uploadName}-${docpackId}.docpack`);
 		const cliPath = join(process.cwd(), '..', 'cli');
+		const cliBinary = join(cliPath, 'target', 'release', 'localdoc');
 
 		await new Promise((resolve, reject) => {
 			const ingest = spawn(
-				'cargo',
-				['run', '--', 'ingest', extractPath, '--out', docpackPath, '--name', uploadName],
-				{ cwd: cliPath }
+				cliBinary,
+				['ingest', extractPath, '--out', docpackPath, '--name', uploadName]
 			);
 
 			let stderr = '';
@@ -75,15 +75,20 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		// Run the documenter agent
 		const envPath = join(process.cwd(), '..', '.env');
+		const runArgs = ['run', docpackPath, '--image', 'doctown:latest'];
+		
+		// Add --env-file if .env exists
+		const { access } = await import('fs/promises');
+		try {
+			await access(envPath);
+			runArgs.push('--env-file', envPath);
+		} catch {
+			// .env doesn't exist, continue without it
+			console.warn('No .env file found at', envPath);
+		}
+		
 		await new Promise((resolve, reject) => {
-			const run = spawn(
-				'cargo',
-				['run', '--', 'run', docpackPath, '--image', 'doctown:latest'],
-				{
-					cwd: cliPath,
-					env: { ...process.env, ENV_FILE: envPath }
-				}
-			);
+			const run = spawn(cliBinary, runArgs);
 
 			let stdout = '';
 			let stderr = '';

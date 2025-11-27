@@ -53,9 +53,9 @@ This document explains how the `localdoc` CLI integrates with the Doctown docume
                        │
                        ▼
               ┌─────────────────┐
-              │  OpenAI API      │
-              │  (GPT-4o)        │
-              └──────────────────┘
+              │  OpenAI API     │
+              │  (or Ollama)    │
+              └─────────────────┘
 ```
 
 ## Component Responsibilities

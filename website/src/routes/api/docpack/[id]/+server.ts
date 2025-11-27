@@ -4,7 +4,7 @@ import { readdir, readFile, stat } from 'fs/promises';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const OUTPUT_DIR = join(homedir(), '.localdoc', 'outputs');
+const OUTPUT_DIR = join(homedir(), '.localdoc', 'docpacks');
 
 interface FileNode {
 	name: string;
@@ -47,6 +47,15 @@ async function buildFileTree(dir: string, basePath = ''): Promise<FileNode[]> {
 export const GET: RequestHandler = async ({ params }) => {
 	try {
 		const docpackPath = join(OUTPUT_DIR, `${params.id}.docpack`);
+		console.log('Loading docpack from:', docpackPath);
+
+		// Check if docpack exists
+		try {
+			await stat(docpackPath);
+		} catch (err) {
+			console.error('Docpack not found:', docpackPath);
+			return json({ error: `Docpack not found: ${params.id}` }, { status: 404 });
+		}
 
 		// Read manifest
 		const manifestPath = join(docpackPath, 'docpack.json');

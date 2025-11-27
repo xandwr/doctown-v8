@@ -22,13 +22,28 @@ def main():
     # Initialize tools
     tools = DocpackTools(sandbox)
 
-    # Get OpenAI client
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("Error: OPENAI_API_KEY environment variable not set", file=sys.stderr)
-        sys.exit(1)
-
-    client = OpenAI(api_key=api_key)
+    # Get AI client - support both OpenAI and Ollama
+    use_ollama = os.getenv("USE_OLLAMA", "false").lower() == "true"
+    
+    if use_ollama:
+        # Use Ollama (local or RunPod)
+        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
+        model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+        client = OpenAI(
+            base_url=ollama_base_url,
+            api_key="ollama"  # Ollama doesn't need a real key
+        )
+        print(f"Using Ollama at {ollama_base_url} with model {model}")
+    else:
+        # Use OpenAI
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("Error: OPENAI_API_KEY environment variable not set", file=sys.stderr)
+            print("Tip: Set USE_OLLAMA=true to use Ollama instead", file=sys.stderr)
+            sys.exit(1)
+        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        client = OpenAI(api_key=api_key)
+        print(f"Using OpenAI with model {model}")
 
     # Load tasks from docpack
     tasks_config = sandbox.load_tasks()
@@ -86,7 +101,7 @@ Explore the project at '.' and provide a comprehensive summary of its structure 
 
         # Call the agent
         response = client.chat.completions.create(
-            model="gpt-4o",  # Vision-capable model
+            model=model,
             messages=messages,
             tools=tool_definitions,
             tool_choice="auto"

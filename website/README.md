@@ -52,7 +52,7 @@ Open [http://localhost:5173](http://localhost:5173)
 ```
 ~/.localdoc/
 ├── temp/           # Temporary upload/extraction
-└── outputs/        # Generated .docpack files
+└── docpacks/        # Generated .docpack files
     └── myproject-abc123.docpack/
         ├── docpack.json    # Manifest
         ├── tasks.json      # AI agent tasks

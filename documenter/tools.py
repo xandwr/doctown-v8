@@ -160,10 +160,11 @@ class DocpackTools:
 
     def get_tool_definitions(self):
         """
-        Return OpenAI-compatible tool definitions based on what's
-        enabled in the docpack manifest.
+        Return OpenAI-compatible tool definitions.
+        By default, all tools are available. Manifests can optionally
+        restrict to a subset via environment.tools array.
         """
-        enabled_tools = self.sandbox.manifest.get("environment", {}).get("tools", [])
+        enabled_tools = self.sandbox.manifest.get("environment", {}).get("tools", None)
 
         all_tools = {
             "list_files": {
@@ -305,7 +306,11 @@ class DocpackTools:
             }
         }
 
-        # Return only enabled tools
+        # If no tools specified in manifest, enable all tools
+        if enabled_tools is None:
+            return list(all_tools.values())
+        
+        # Otherwise, return only the specified tools
         return [all_tools[tool] for tool in enabled_tools if tool in all_tools]
 
     def execute(self, tool_name, args):

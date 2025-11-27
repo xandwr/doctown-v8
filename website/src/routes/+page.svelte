@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import JSZip from 'jszip';
+	import { extractZipToMap } from '$lib/wasm-zip';
 
 	interface StagedDocpack {
 		name: string;
@@ -74,44 +75,110 @@
 	async function loadDocpack(file: File) {
 		try {
 			error = '';
-			const zip = await JSZip.loadAsync(file);
+			console.log('Loading file:', file.name, file.size, 'bytes');
 
+			// Use WASM to extract the zip
+			console.log('Reading file as array buffer...');
+			const arrayBuffer = await file.arrayBuffer();
+			console.log('Extracting with WASM...');
+			const { isDocpack, filesMap } = await extractZipToMap(new Uint8Array(arrayBuffer));
+			console.log('Extracted:', filesMap.size, 'files, isDocpack:', isDocpack);
+
+			if (!isDocpack) {
+				// Not a docpack - treat as regular zip and extract all files
+				console.log('Not a docpack, creating new docpack from files');
+				await extractZipToDocpackWasm(filesMap, file.name.replace('.zip', ''));
+				return;
+			}
+
+			// It's a docpack - load it normally
 			// Read manifest
-			const manifestFile = zip.file('docpack.json');
+			const manifestFile = filesMap.get('docpack.json');
 			if (!manifestFile) {
 				throw new Error('Invalid docpack: missing docpack.json');
 			}
-			const manifestText = await manifestFile.async('text');
+			const manifestText = await manifestFile.text();
 			const manifest = JSON.parse(manifestText);
 
 			// Read tasks
-			const tasksFile = zip.file('tasks.json');
-			const tasks = tasksFile ? JSON.parse(await tasksFile.async('text')) : null;
+			const tasksFile = filesMap.get('tasks.json');
+			const tasks = tasksFile ? JSON.parse(await tasksFile.text()) : null;
 
-			// Extract files
-			const filesMap = new Map<string, File>();
-			const filesFolder = zip.folder('files');
-
-			if (filesFolder) {
-				for (const [path, zipEntry] of Object.entries(zip.files)) {
-					if (path.startsWith('files/') && !zipEntry.dir) {
-						const blob = await zipEntry.async('blob');
-						const fileName = path.replace('files/', '');
-						filesMap.set(fileName, new File([blob], fileName));
-					}
+			// Extract files from the files/ folder
+			const docpackFiles = new Map<string, File>();
+			for (const [path, file] of filesMap.entries()) {
+				if (path.startsWith('files/')) {
+					const fileName = path.replace('files/', '');
+					docpackFiles.set(fileName, file);
 				}
 			}
 
 			stagedDocpack = {
-				name: manifest.name || file.name.replace('.docpack', ''),
+				name: manifest.name || file.name.replace('.docpack', '').replace('.zip', ''),
 				description: manifest.description || '',
-				files: filesMap,
+				files: docpackFiles,
 				manifest,
 				tasks
 			};
 
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to load docpack';
+			error = err instanceof Error ? err.message : 'Failed to load file';
+		}
+	}
+
+	async function extractZipToDocpackWasm(filesMap: Map<string, File>, baseName: string) {
+		try {
+			if (filesMap.size === 0) {
+				throw new Error('Zip file is empty or all files failed to extract');
+			}
+
+			// Create a new docpack from these files
+			stagedDocpack = {
+				name: baseName || 'New Docpack',
+				description: `Created from ${filesMap.size} file${filesMap.size > 1 ? 's' : ''} in zip`,
+				files: filesMap,
+				manifest: {
+					version: '1.0',
+					name: baseName || 'New Docpack',
+					description: `Created from ${filesMap.size} file${filesMap.size > 1 ? 's' : ''} in zip`,
+					environment: {
+						interpreter: 'python3.12',
+						constraints: {
+							max_file_reads: 1000,
+							max_execution_time_seconds: 300,
+							memory_limit_mb: 2048
+						}
+					},
+					metadata: {
+						created: new Date().toISOString(),
+						creator: 'doctown-web',
+						source_type: 'zip_extract'
+					}
+				},
+				tasks: {
+					mission: 'Explore and document this content',
+					tasks: [
+						{
+							id: 'task_1',
+							name: 'Analyze content',
+							description: 'Explore and create a comprehensive overview',
+							tools_allowed: ['list_files', 'read_file', 'write_output'],
+							output: {
+								type: 'markdown',
+								path: 'output/overview.md'
+							}
+						}
+					],
+					constraints: {
+						chain_of_thought_location: '/workspace/.reasoning',
+						forbidden_actions: ['modify_files', 'execute_code'],
+						output_format: 'markdown'
+					}
+				}
+			};
+
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to extract zip';
 		}
 	}
 
@@ -208,8 +275,16 @@
 			const a = document.createElement('a');
 			a.href = url;
 			a.download = `${stagedDocpack.name}.docpack`;
+
+			// Append to DOM, click, then remove
+			document.body.appendChild(a);
 			a.click();
-			URL.revokeObjectURL(url);
+			document.body.removeChild(a);
+
+			// Revoke URL after a short delay to ensure download starts
+			setTimeout(() => {
+				URL.revokeObjectURL(url);
+			}, 100);
 
 			// Clear staging
 			stagedDocpack = null;
@@ -252,14 +327,24 @@
 				body: formData
 			});
 
-			const result = await response.json();
-
 			if (!response.ok) {
-				throw new Error(result.error || 'Processing failed');
+				const text = await response.text();
+				console.error('Server error:', text);
+				try {
+					const result = JSON.parse(text);
+					throw new Error(result.error || 'Processing failed');
+				} catch (parseErr) {
+					throw new Error(`Server error: ${text}`);
+				}
 			}
 
+			const result = await response.json();
+			console.log('Upload result:', result);
+
 			// Redirect to viewer
-			goto(`/docpack/${result.docpackId}`);
+			const encodedId = encodeURIComponent(result.docpackId);
+			console.log('Redirecting to:', `/docpack/${encodedId}`);
+			goto(`/docpack/${encodedId}`);
 
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'An error occurred';

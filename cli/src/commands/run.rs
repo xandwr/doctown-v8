@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-pub fn run(docpack: &str, image: &str, follow: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(docpack: &str, image: &str, follow: bool, env_file: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
     let docpack_path = Path::new(docpack);
 
     // Validate docpack exists
@@ -23,10 +23,18 @@ pub fn run(docpack: &str, image: &str, follow: bool) -> Result<(), Box<dyn std::
     // Build docker run command
     let mut cmd = Command::new("docker");
     cmd.arg("run")
-        .arg("--rm")
-        .arg("--env-file")
-        .arg(".env")
-        .arg("-v")
+        .arg("--rm");
+    
+    // Add --env-file if provided or if .env exists in current dir
+    if let Some(env_path) = env_file {
+        if Path::new(env_path).exists() {
+            cmd.arg("--env-file").arg(env_path);
+        }
+    } else if Path::new(".env").exists() {
+        cmd.arg("--env-file").arg(".env");
+    }
+    
+    cmd.arg("-v")
         .arg(format!("{}:/workspace", abs_path.display()))
         .arg(image);
 

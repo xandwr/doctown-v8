@@ -63,6 +63,10 @@ enum Commands {
         /// Follow logs in real-time
         #[arg(short, long)]
         follow: bool,
+
+        /// Path to .env file for Docker
+        #[arg(long)]
+        env_file: Option<String>,
     },
 
     /// Inspect a .docpack's structure and metadata
@@ -123,7 +127,8 @@ fn main() {
             docpack,
             image,
             follow,
-        } => commands::run::run(docpack, image, *follow),
+            env_file,
+        } => commands::run::run(docpack, image, *follow, env_file.as_deref()),
         Commands::Inspect { docpack, verbose } => commands::inspect::run(docpack, *verbose),
         Commands::Validate { docpack } => commands::validate::run(docpack),
         Commands::Init {

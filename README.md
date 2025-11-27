@@ -1,6 +1,6 @@
 # Doctown v8
 
-> "npm but for documentation" - AI-powered documentation generation for anything
+> "npm but for documentation" - AI-optional documentation that follow you everywhere.
 
 Turn any codebase (or really, any collection of files) into a structured, explorable .docpack with AI-generated documentation.
 
@@ -34,12 +34,26 @@ The agent "lives in" the docpack container, using tools to explore and reason ab
 
 ### Local Development
 
-1. **Set up environment:**
+1. **Choose your AI provider:**
+   
+   **Option A: Ollama (Recommended - Free, No Rate Limits)**
    ```bash
-   cd documenter
-   cp .env.example .env
-   # Add your OPENAI_API_KEY to .env
+   # Install Ollama
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # Pull a model
+   ollama pull llama3.1:8b
+   
+   # Configure
+   echo "USE_OLLAMA=true" > .env
    ```
+   
+   **Option B: OpenAI**
+   ```bash
+   echo "OPENAI_API_KEY=sk-your-key-here" > .env
+   ```
+   
+   See [OLLAMA_SETUP.md](OLLAMA_SETUP.md) for details.
 
 2. **Build the Docker image:**
    ```bash

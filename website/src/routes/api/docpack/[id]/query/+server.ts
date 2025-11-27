@@ -79,7 +79,7 @@ while iteration < max_iterations:
 	iteration += 1
 
 	response = client.chat.completions.create(
-		model="gpt-4o",
+		model=5-nano",
 		messages=messages,
 		tools=tool_definitions,
 		tool_choice="auto"

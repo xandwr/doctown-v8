@@ -25,12 +25,12 @@ if ! docker images | grep -q "doctown.*latest"; then
 fi
 
 # Create output directory
-mkdir -p ~/.localdoc/outputs
+mkdir -p ~/.localdoc/docpacks
 mkdir -p ~/.localdoc/temp
 
 echo "📁 Storage locations:"
 echo "   Temp:    ~/.localdoc/temp"
-echo "   Outputs: ~/.localdoc/outputs"
+echo "   Docpacks: ~/.localdoc/docpacks"
 echo ""
 
 # Start the dev server
