@@ -164,7 +164,7 @@ class DocpackTools:
         except Exception as e:
             return {"error": str(e)}
 
-    def semantic_search_and_read(self, query, max_results=3):
+    def semantic_search_and_read(self, query, max_results=5):
         """
         Semantic search + automatic file reading.
         One-shot tool to find and read relevant code.
@@ -205,6 +205,115 @@ class DocpackTools:
             "files_found": len(outputs),
             "results": outputs
         }
+
+    def semantic_outline(self, query, top_k=10, context_lines=5):
+        """
+        Give me a structured outline of the relevant sections across files.
+
+        Performs semantic search and extracts code snippets around each match,
+        producing a high-level outline that an LLM can quickly digest.
+
+        Unlike semantic_search_and_read which returns full files, this returns
+        targeted snippets, making it perfect for getting an overview across
+        many locations without overwhelming context.
+
+        Args:
+            query: Natural language description of what you're looking for
+            top_k: Number of results to return (default: 10)
+            context_lines: Lines to show before/after the match (default: 5)
+        """
+        search_results = self.semantic_search(query, top_k=top_k)
+
+        if "error" in search_results:
+            return search_results
+
+        # Group results by file
+        files_map = {}
+        for result in search_results["results"]:
+            file = result["file"] # type: ignore
+            if file not in files_map:
+                files_map[file] = []
+            files_map[file].append({
+                "chunk": result["chunk"], # type: ignore
+                "score": result["score"] # type: ignore
+            })
+
+        # Build outline by extracting snippets
+        outline = []
+        for file, chunks in files_map.items():
+            # Read the file
+            content = self.read_file(file)
+            if "error" in content:
+                continue
+
+            file_content = content.get("content", "")
+            lines = file_content.splitlines()
+
+            sections = []
+            for chunk_info in chunks:
+                chunk_text = chunk_info["chunk"]
+                score = chunk_info["score"]
+
+                # Find the chunk in the file content
+                line_num = self._find_chunk_line(lines, chunk_text)
+
+                if line_num is not None:
+                    # Extract snippet with context
+                    start = max(0, line_num - context_lines)
+                    end = min(len(lines), line_num + context_lines + 1)
+                    snippet_lines = lines[start:end]
+                    snippet = "\n".join(snippet_lines)
+
+                    sections.append({
+                        "line": line_num + 1,  # 1-indexed for user display
+                        "snippet": snippet,
+                        "score": score
+                    })
+
+            if sections:
+                outline.append({
+                    "file": file,
+                    "sections": sections
+                })
+
+        return {
+            "query": query,
+            "outline": outline
+        }
+
+    def _find_chunk_line(self, lines, chunk_text):
+        """
+        Find the line number where a chunk appears in the file.
+        Returns the first line of the chunk (0-indexed).
+        """
+        chunk_lines = chunk_text.strip().splitlines()
+        if not chunk_lines:
+            return None
+
+        # Search for the first line of the chunk
+        first_chunk_line = chunk_lines[0].strip()
+
+        for i, line in enumerate(lines):
+            if first_chunk_line in line.strip():
+                # Found a potential match, verify by checking subsequent lines
+                match = True
+                for j, chunk_line in enumerate(chunk_lines):
+                    if i + j >= len(lines):
+                        match = False
+                        break
+                    if chunk_line.strip() not in lines[i + j].strip():
+                        match = False
+                        break
+
+                if match:
+                    return i
+
+        # Fallback: just find first line
+        for i, line in enumerate(lines):
+            if first_chunk_line in line.strip():
+                return i
+
+        return None
 
     def write_output(self, path, content):
         """Write content to the output/ directory."""
@@ -342,6 +451,33 @@ class DocpackTools:
                                 "type": "integer",
                                 "description": "Maximum number of files to return (default: 3)",
                                 "default": 3
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            "semantic_outline": {
+                "type": "function",
+                "function": {
+                    "name": "semantic_outline",
+                    "description": "Get a structured outline of relevant code sections across files. Performs semantic search and extracts targeted snippets (with surrounding context lines) instead of full files. Perfect for getting a high-level overview across many locations without overwhelming the context window.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Natural language description of what you're looking for (e.g., 'GPU initialization', 'error handling patterns', 'authentication logic')"
+                            },
+                            "top_k": {
+                                "type": "integer",
+                                "description": "Number of results to return (default: 10)",
+                                "default": 10
+                            },
+                            "context_lines": {
+                                "type": "integer",
+                                "description": "Number of lines to show before/after each match (default: 5)",
+                                "default": 5
                             }
                         },
                         "required": ["query"]
