@@ -42,3 +42,5 @@ htmlcov/
 # Temporary files
 *.tmp
 input.zip
+/target
+*/target

@@ -1,0 +1,13 @@
+[package]
+name = "localdoc"
+version = "8.0.0"
+edition = "2021"
+description = "A command line utility to facilitate interaction with .docpacks."
+license = "MIT"
+
+[dependencies]
+clap = { version = "4.5.53", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+walkdir = "2.4"
+chrono = "0.4"
