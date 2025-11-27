@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     ripgrep \
     git \
     tree \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up working directory

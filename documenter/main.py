@@ -86,7 +86,7 @@ Explore the project at '.' and provide a comprehensive summary of its structure 
 
         # Call the agent
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # Use a real model
+            model="gpt-4o",  # Vision-capable model
             messages=messages,
             tools=tool_definitions,
             tool_choice="auto"
@@ -109,13 +109,43 @@ Explore the project at '.' and provide a comprehensive summary of its structure 
                 # Execute the tool
                 result = tools.execute(tool_name, args)
 
-                # Add result to conversation
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "name": tool_name,
-                    "content": json.dumps(result)
-                })
+                # Special handling for read_image and read_pdf - convert to vision format
+                if tool_name in ("read_image", "read_pdf") and "base64" in result:
+                    page_info = f" (page {result['page']})" if "page" in result else ""
+                    file_desc = result.get('format', 'Image')
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_name,
+                        "content": json.dumps({
+                            "success": True,
+                            "message": f"{file_desc} loaded: {result['path']}{page_info}. You can now analyze it in your response."
+                        })
+                    })
+                    # Add image as a follow-up user message for vision analysis
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": f"Analyze this image from {result['path']}{page_info}:"
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{result['mime_type']};base64,{result['base64']}"
+                                }
+                            }
+                        ]
+                    })
+                else:
+                    # Standard tool result
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_name,
+                        "content": json.dumps(result)
+                    })
 
         # Check if agent is done (no more tool calls and has content)
         elif message.content:

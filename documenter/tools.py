@@ -4,7 +4,12 @@ These are the functions the agent can call to interact with the .docpack.
 """
 import os
 import json
+import base64
+import mimetypes
+import io
 from pathlib import Path
+from pdf2image import convert_from_path
+from PIL import Image
 
 
 class DocpackTools:
@@ -40,6 +45,72 @@ class DocpackTools:
             with open(real, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
             return {"content": content}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def read_image(self, path):
+        """Read an image file and return it as base64 for vision analysis."""
+        real = self.sandbox.resolve(path)
+        if real is None:
+            return {"error": "Path outside sandbox"}
+
+        # Validate it's an image file
+        mime_type, _ = mimetypes.guess_type(real)
+        if not mime_type or not mime_type.startswith('image/'):
+            return {"error": "File is not an image"}
+
+        # Check supported formats
+        supported = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
+        if not any(str(real).lower().endswith(ext) for ext in supported):
+            return {"error": f"Unsupported image format. Supported: {', '.join(supported)}"}
+
+        try:
+            with open(real, "rb") as f:
+                image_data = base64.b64encode(f.read()).decode('utf-8')
+            
+            return {
+                "base64": image_data,
+                "mime_type": mime_type,
+                "path": path
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def read_pdf(self, path, page=1, dpi=200):
+        """Read a PDF file, convert specified page to image, and return as base64 for OCR/vision analysis."""
+        real = self.sandbox.resolve(path)
+        if real is None:
+            return {"error": "Path outside sandbox"}
+
+        # Validate it's a PDF file
+        if not str(real).lower().endswith('.pdf'):
+            return {"error": "File is not a PDF"}
+
+        try:
+            # Convert PDF page to image
+            images = convert_from_path(
+                real, 
+                dpi=dpi,
+                first_page=page,
+                last_page=page
+            )
+            
+            if not images:
+                return {"error": "Failed to convert PDF page"}
+            
+            # Convert PIL Image to base64
+            img = images[0]
+            buffer = io.BytesIO()
+            img.save(buffer, format='PNG')
+            image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            
+            return {
+                "base64": image_data,
+                "mime_type": "image/png",
+                "path": path,
+                "page": page,
+                "format": "PDF converted to PNG"
+            }
         except Exception as e:
             return {"error": str(e)}
 
@@ -185,6 +256,50 @@ class DocpackTools:
                             }
                         },
                         "required": ["path", "content"]
+                    }
+                }
+            },
+            "read_image": {
+                "type": "function",
+                "function": {
+                    "name": "read_image",
+                    "description": "Read an image file (PNG, JPEG, WEBP, GIF) for vision/OCR analysis. Returns base64-encoded image data.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Relative path to the image file"
+                            }
+                        },
+                        "required": ["path"]
+                    }
+                }
+            },
+            "read_pdf": {
+                "type": "function",
+                "function": {
+                    "name": "read_pdf",
+                    "description": "Read a PDF file, convert a page to image, and return for OCR/vision analysis. Useful for extracting text and analyzing diagrams from PDFs.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Relative path to the PDF file"
+                            },
+                            "page": {
+                                "type": "integer",
+                                "description": "Page number to read (default: 1)",
+                                "default": 1
+                            },
+                            "dpi": {
+                                "type": "integer",
+                                "description": "DPI for image conversion (default: 200, higher = better quality but slower)",
+                                "default": 200
+                            }
+                        },
+                        "required": ["path"]
                     }
                 }
             }

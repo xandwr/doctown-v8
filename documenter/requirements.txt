@@ -1,2 +1,4 @@
 openai
 dotenv
+pdf2image
+Pillow

@@ -7,6 +7,8 @@
     "tools": [
       "list_files",
       "read_file",
+      "read_image",
+      "read_pdf",
       "search_code",
       "query_graph",
       "write_output"

@@ -33,9 +33,11 @@ Defines how to build the sandbox and what tools are available.
     "tools": [
       "list_files",
       "read_file",
+      "read_image",        // NEW: Read image files for vision/OCR
+      "read_pdf",          // NEW: Convert PDF pages to images for OCR
       "search_code",
       "query_graph",
-      "semantic_search"
+      "write_output"
     ],
     "interpreter": "python3.12",
     "constraints": {
@@ -209,10 +211,18 @@ Tools available to the agent (defined in `docpack.json`):
 
 - **list_files(path)** - List files in directory
 - **read_file(path)** - Read file contents
+- **read_image(path)** - Read an image file (PNG, JPEG, WEBP, GIF) and return as base64 for vision/OCR analysis
+- **read_pdf(path, page=1, dpi=200)** - Convert a PDF page to PNG and return as base64 for vision/OCR analysis (extracts text, diagrams, tables, handwriting)
 - **search_code(query)** - Search using inverted index
 - **query_graph(query_type, filters)** - Query the relationship graph
-- **semantic_search(query, top_k)** - Vector similarity search
 - **write_output(path, content)** - Write to output directory
+
+### PDF and Image OCR
+
+- The agent can call `read_image` or `read_pdf` to extract text and visual information from images and PDF files.
+- `read_pdf` converts a specified page of a PDF to a PNG image, which is then analyzed using the vision model (OCR, diagram analysis, etc).
+- Supported image formats: PNG, JPEG, WEBP, GIF. Supported PDF: any standard PDF (first N pages, configurable).
+- This enables documentation of scanned documents, diagrams, screenshots, and multi-page PDFs.
 
 ## Benefits
 
