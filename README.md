@@ -1,6 +1,23 @@
-# Doctown v8 - Agent-Powered Documentation Platform
+# Doctown v8
 
-A revolutionary approach to documentation: instead of static analysis, Doctown runs an AI agent in a secure Docker sandbox to explore, understand, and document any type of content.
+> "npm but for documentation" - AI-powered documentation generation for anything
+
+Turn any codebase (or really, any collection of files) into a structured, explorable .docpack with AI-generated documentation.
+
+## The Simplest Version (Web Interface)
+
+1. Upload a .zip folder → 2. AI generates documentation → 3. Explore your docpack
+
+No cloud, no complexity - just localhost magic.
+
+```bash
+# Start the web interface
+./start_web.sh
+
+# Open http://localhost:5173
+# Drag and drop a .zip file
+# Wait for the magic
+```
 
 ## Core Concept
 
@@ -173,16 +190,60 @@ docker run --env-file ../documenter/.env \
 - Resource limits configurable in `docpack.json`
 - No network access by default (add if needed)
 
+## What's Inside
+
+### Web Interface (`/website`)
+- **Drag & drop upload** - Just drop a .zip file
+- **Browse docpacks** - See all your generated documentation
+- **Explore content** - View source files and AI-generated docs
+- **Localhost-first** - Everything runs on your machine
+
+### CLI (`/cli`)
+Rust-based command-line tool:
+```bash
+localdoc ingest ./my-project --out my-project.docpack
+localdoc run my-project.docpack
+localdoc inspect my-project.docpack
+```
+
+### Documenter (`/documenter`)
+Docker container running AI agent:
+- Sandboxed Python environment
+- OpenAI GPT-4 powered
+- Custom tool access (read files, search code, write output)
+
+## Storage
+
+Everything lives in `~/.localdoc/`:
+
+```
+~/.localdoc/
+├── temp/              # Temporary upload processing
+└── outputs/           # All generated .docpacks
+    ├── project1-abc123.docpack/
+    ├── project2-def456.docpack/
+    └── ...
+```
+
+## Philosophy
+
+Started with AST parsing and complex code analysis. Ended up here - a much simpler, more elegant solution:
+
+1. **Universal Input** - Not just code, anything you want documented
+2. **AI-Powered** - Let the model figure out what matters
+3. **Deterministic Output** - .docpack files are portable and reproducible
+4. **Localhost First** - Build locally, share later
+
 ## Future Enhancements
 
+- [ ] Markdown rendering in viewer
+- [ ] Syntax highlighting for code
+- [ ] Real-time progress updates via WebSocket
+- [ ] Share docpacks via links
+- [ ] R2 storage integration
+- [ ] Public docpack registry
 - [ ] Support for embeddings-based semantic search
-- [ ] Binary file handling (images, PDFs via vision)
 - [ ] Multi-agent collaboration
-- [ ] Streaming output
-- [ ] Progress reporting
-- [ ] Result validation against task constraints
-- [ ] Builder CLI to generate .docpacks from raw projects
-- [ ] Web UI for docpack exploration
 
 ## License
 
