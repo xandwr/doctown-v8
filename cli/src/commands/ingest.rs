@@ -2,6 +2,9 @@ use std::fs;
 use std::path::Path;
 use std::io::{self, Write};
 use serde_json::json;
+use zip::write::FileOptions;
+use zip::ZipWriter;
+use zip::CompressionMethod;
 
 pub fn run(
     source: &str,
@@ -30,21 +33,22 @@ pub fn run(
             .unwrap_or("untitled")
     });
 
-    let out_path = Path::new(out);
+    // Create a temporary directory for building the docpack
+    let temp_dir = std::env::temp_dir().join(format!("docpack-build-{}", std::process::id()));
+    fs::create_dir_all(&temp_dir)?;
 
-    // Create .docpack directory structure
-    println!("Creating directory structure at: {}", out);
-    fs::create_dir_all(out_path)?;
-    fs::create_dir_all(out_path.join("files"))?;
-    fs::create_dir_all(out_path.join("index"))?;
-    fs::create_dir_all(out_path.join("output"))?;
+    // Create .docpack directory structure in temp
+    println!("Creating directory structure...");
+    fs::create_dir_all(temp_dir.join("files"))?;
+    fs::create_dir_all(temp_dir.join("index"))?;
+    fs::create_dir_all(temp_dir.join("output"))?;
 
     // Copy source files to files/
     println!("Copying source files...");
-    copy_dir_all(source_path, &out_path.join("files"))?;
+    copy_dir_all(source_path, &temp_dir.join("files"))?;
 
     // Count files for reporting
-    let file_count = count_files(&out_path.join("files"))?;
+    let file_count = count_files(&temp_dir.join("files"))?;
     println!("  Copied {} files", file_count);
 
     // Create docpack.json manifest
@@ -85,7 +89,7 @@ pub fn run(
         }
     });
 
-    let manifest_path = out_path.join("docpack.json");
+    let manifest_path = temp_dir.join("docpack.json");
     let mut manifest_file = fs::File::create(&manifest_path)?;
     manifest_file.write_all(serde_json::to_string_pretty(&manifest)?.as_bytes())?;
     println!("  Created docpack.json");
@@ -113,7 +117,7 @@ pub fn run(
         }
     });
 
-    let tasks_path = out_path.join("tasks.json");
+    let tasks_path = temp_dir.join("tasks.json");
     let mut tasks_file = fs::File::create(&tasks_path)?;
     tasks_file.write_all(serde_json::to_string_pretty(&tasks)?.as_bytes())?;
     println!("  Created tasks.json");
@@ -121,7 +125,7 @@ pub fn run(
     // Build index if requested
     if build_index {
         println!("Building search index...");
-        build_search_index(&out_path.join("files"), &out_path.join("index"))?;
+        build_search_index(&temp_dir.join("files"), &temp_dir.join("index"))?;
         println!("  Created index/search.json");
     }
 
@@ -129,15 +133,30 @@ pub fn run(
     if build_graph {
         println!("Building semantic graph...");
         println!("  Note: Full graph building requires code analysis (coming soon)");
-        create_empty_graph(&out_path.join("index"))?;
+        create_empty_graph(&temp_dir.join("index"))?;
         println!("  Created index/graph.json (empty template)");
     }
 
-    println!("\n✓ Successfully created .docpack: {}", out);
+    // Create the zip archive
+    println!("Creating zip archive...");
+    let out_path = Path::new(out);
+
+    // Ensure output path has .docpack extension
+    let zip_path = if out.ends_with(".docpack") {
+        out_path.to_path_buf()
+    } else {
+        out_path.with_extension("docpack")
+    };
+
+    create_zip_archive(&temp_dir, &zip_path)?;
+
+    // Clean up temp directory
+    fs::remove_dir_all(&temp_dir)?;
+
+    println!("\n✓ Successfully created .docpack archive: {}", zip_path.display());
     println!("\nNext steps:");
-    println!("  1. Review {}/tasks.json and customize your documentation goals", out);
-    println!("  2. Run: localdoc run {}", out);
-    println!("  3. Check output in {}/output/", out);
+    println!("  1. Run: localdoc run {}", zip_path.display());
+    println!("  2. The archive will be automatically extracted and processed");
 
     Ok(())
 }
@@ -244,5 +263,57 @@ fn create_empty_graph(index_dir: &Path) -> Result<(), Box<dyn std::error::Error>
     let mut graph_file = fs::File::create(&graph_path)?;
     graph_file.write_all(serde_json::to_string_pretty(&graph)?.as_bytes())?;
 
+    Ok(())
+}
+
+fn create_zip_archive(source_dir: &Path, zip_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let file = fs::File::create(zip_path)?;
+    let mut zip = ZipWriter::new(file);
+    let options = FileOptions::default()
+        .compression_method(CompressionMethod::Deflated)
+        .unix_permissions(0o644);
+
+    // Configure walkdir to not follow symlinks
+    let walkdir = walkdir::WalkDir::new(source_dir)
+        .follow_links(false);
+
+    for entry in walkdir {
+        let entry = entry?;
+        let path = entry.path();
+
+        // Skip symlinks entirely
+        if path.is_symlink() {
+            continue;
+        }
+
+        let name = path.strip_prefix(source_dir)?;
+
+        // Skip the root directory itself
+        if name.as_os_str().is_empty() {
+            continue;
+        }
+
+        // Convert path to string for zip entry name
+        let name_str = name.to_str().ok_or("Invalid UTF-8 in path")?.to_string();
+
+        if path.is_file() {
+            // Add file
+            zip.start_file(&name_str, options)?;
+            let mut f = fs::File::open(path)
+                .map_err(|e| format!("Failed to open file {:?}: {}", path, e))?;
+            io::copy(&mut f, &mut zip)
+                .map_err(|e| format!("Failed to copy file {:?}: {}", path, e))?;
+        } else if path.is_dir() {
+            // Add directory
+            let dir_name = if name_str.ends_with('/') {
+                name_str
+            } else {
+                format!("{}/", name_str)
+            };
+            zip.add_directory(&dir_name, options)?;
+        }
+    }
+
+    zip.finish()?;
     Ok(())
 }
