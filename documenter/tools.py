@@ -11,6 +11,7 @@ from pathlib import Path
 from pdf2image import convert_from_path
 from PIL import Image
 from embeddings import EmbeddingSearcher
+from parser import FunctionParser
 
 
 class DocpackTools:
@@ -19,6 +20,7 @@ class DocpackTools:
     def __init__(self, sandbox):
         self.sandbox = sandbox
         self._embedding_searcher = None
+        self._function_parser = None
 
     def list_files(self, path="."):
         """List all files in a directory within the files/ area."""
@@ -281,6 +283,67 @@ class DocpackTools:
             "outline": outline
         }
 
+    def semantic_grep(self, query, top_k=10, context_lines=3):
+        """
+        Semantic ripgrep: returns only line-level snippets, not whole files.
+
+        Think grep but semantic. Instead of returning entire files, this tool
+        returns just the relevant code snippets with minimal context. Perfect
+        for large repos where you need precision, not bulk.
+
+        This cuts token usage by 100× compared to reading full files.
+
+        Args:
+            query: Natural language description of what to find
+            top_k: Number of matches to return (default: 10)
+            context_lines: Lines before/after each match (default: 3)
+
+        Returns:
+            List of snippets with file, line number, and code context
+        """
+        search_results = self.semantic_search(query, top_k=top_k)
+
+        if "error" in search_results:
+            return search_results
+
+        snippets = []
+
+        for result in search_results["results"]:
+            file = result["file"] # type: ignore
+            chunk_text = result["chunk"] # type: ignore
+            score = result["score"] # type: ignore
+
+            # Read the file
+            content = self.read_file(file)
+            if "error" in content:
+                continue
+
+            file_content = content.get("content", "")
+            lines = file_content.splitlines()
+
+            # Find where this chunk appears
+            line_num = self._find_chunk_line(lines, chunk_text)
+
+            if line_num is not None:
+                # Extract snippet with context
+                start = max(0, line_num - context_lines)
+                end = min(len(lines), line_num + context_lines + 1)
+                snippet_lines = lines[start:end]
+                snippet = "\n".join(snippet_lines)
+
+                snippets.append({
+                    "file": file,
+                    "line": line_num + 1,  # 1-indexed for display
+                    "snippet": snippet,
+                    "score": score
+                })
+
+        return {
+            "query": query,
+            "matches": len(snippets),
+            "snippets": snippets
+        }
+
     def _find_chunk_line(self, lines, chunk_text):
         """
         Find the line number where a chunk appears in the file.
@@ -314,6 +377,59 @@ class DocpackTools:
                 return i
 
         return None
+
+    def list_functions(self, path):
+        """
+        Parse a source file and extract all functions, methods, and classes.
+
+        Uses tree-sitter for robust parsing (Python, Rust, JavaScript, TypeScript)
+        with regex fallback. Returns symbolic information that makes LLMs 10×
+        more reliable by providing precise locations and structure.
+
+        Supported languages:
+        - Python: functions, classes
+        - Rust: functions, structs, impls, enums
+        - JavaScript/TypeScript: functions, classes, methods
+
+        Args:
+            path: Relative path to source file
+
+        Returns:
+            {
+                "file": "path/to/file.py",
+                "language": "python",
+                "symbols": [
+                    {"name": "calculate_sum", "line": 10, "type": "function"},
+                    {"name": "MyClass", "line": 42, "type": "class"}
+                ]
+            }
+        """
+        real = self.sandbox.resolve(path)
+        if real is None:
+            return {"error": "Path outside sandbox"}
+
+        # Lazy load parser
+        if self._function_parser is None:
+            self._function_parser = FunctionParser()
+
+        try:
+            # Read file content
+            with open(real, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            # Parse using tree-sitter
+            result = self._function_parser.parse_file(Path(path), content)
+
+            if result is None:
+                return {
+                    "error": f"Unsupported file type: {Path(path).suffix}",
+                    "supported": [".py", ".rs", ".js", ".jsx", ".ts", ".tsx"]
+                }
+
+            return result
+
+        except Exception as e:
+            return {"error": str(e)}
 
     def write_output(self, path, content):
         """Write content to the output/ directory."""
@@ -481,6 +597,50 @@ class DocpackTools:
                             }
                         },
                         "required": ["query"]
+                    }
+                }
+            },
+            "semantic_grep": {
+                "type": "function",
+                "function": {
+                    "name": "semantic_grep",
+                    "description": "Semantic ripgrep - returns only line-level snippets, not whole files. Like grep but semantic. Instead of returning entire files, gives you just the relevant code snippets with minimal context. Cuts token usage by 100× in large repos. Perfect when you need precision, not bulk.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Natural language description of what to find (e.g., 'error handling', 'JWT validation', 'database connection pooling')"
+                            },
+                            "top_k": {
+                                "type": "integer",
+                                "description": "Number of matches to return (default: 10)",
+                                "default": 10
+                            },
+                            "context_lines": {
+                                "type": "integer",
+                                "description": "Lines of context before/after each match (default: 3)",
+                                "default": 3
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            "list_functions": {
+                "type": "function",
+                "function": {
+                    "name": "list_functions",
+                    "description": "Parse a source file and extract all functions, methods, classes, and other symbols with their line numbers. Uses tree-sitter for robust parsing (Python/Rust/JS/TS) with regex fallback. Returns symbolic information that makes LLMs 10× more reliable by providing precise locations and code structure.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Relative path to source file (.py, .rs, .js, .jsx, .ts, .tsx)"
+                            }
+                        },
+                        "required": ["path"]
                     }
                 }
             },

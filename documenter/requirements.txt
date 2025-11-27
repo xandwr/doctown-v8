@@ -3,3 +3,8 @@ dotenv
 pdf2image
 Pillow
 sentence-transformers
+tree-sitter
+tree-sitter-python
+tree-sitter-rust
+tree-sitter-javascript
+tree-sitter-typescript
