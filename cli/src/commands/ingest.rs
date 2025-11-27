@@ -56,6 +56,7 @@ pub fn run(
             "read_image",
             "read_pdf",
             "search_code",
+            "semantic_search",
             "query_graph",
             "write_output",
         ]

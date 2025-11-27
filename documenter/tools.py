@@ -10,6 +10,7 @@ import io
 from pathlib import Path
 from pdf2image import convert_from_path
 from PIL import Image
+from embeddings import EmbeddingSearcher
 
 
 class DocpackTools:
@@ -17,6 +18,7 @@ class DocpackTools:
 
     def __init__(self, sandbox):
         self.sandbox = sandbox
+        self._embedding_searcher = None
 
     def list_files(self, path="."):
         """List all files in a directory within the files/ area."""
@@ -141,6 +143,27 @@ class DocpackTools:
 
         return {"nodes": nodes}
 
+    def semantic_search(self, query, top_k=5):
+        """
+        Semantic search across the codebase using embeddings.
+        Search by concepts, vibes, and intentions rather than exact keywords.
+
+        Examples:
+        - "error handling patterns"
+        - "configuration loading"
+        - "authentication flow"
+        - "data validation logic"
+        """
+        # Lazy load the embedding searcher
+        if self._embedding_searcher is None:
+            self._embedding_searcher = EmbeddingSearcher(self.sandbox.index_dir)
+
+        try:
+            results = self._embedding_searcher.search(query, top_k=top_k)
+            return {"results": results}
+        except Exception as e:
+            return {"error": str(e)}
+
     def write_output(self, path, content):
         """Write content to the output/ directory."""
         real = self.sandbox.resolve_output(path)
@@ -236,6 +259,28 @@ class DocpackTools:
                             }
                         },
                         "required": []
+                    }
+                }
+            },
+            "semantic_search": {
+                "type": "function",
+                "function": {
+                    "name": "semantic_search",
+                    "description": "Semantic search across the codebase using AI embeddings. Search by concepts, vibes, and intentions rather than exact keywords. Perfect for finding code related to abstract concepts like 'error handling', 'configuration', 'authentication', 'data validation', etc.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Natural language description of what you're looking for (e.g., 'error handling patterns', 'authentication logic', 'database queries')"
+                            },
+                            "top_k": {
+                                "type": "integer",
+                                "description": "Number of results to return (default: 5)",
+                                "default": 5
+                            }
+                        },
+                        "required": ["query"]
                     }
                 }
             },
